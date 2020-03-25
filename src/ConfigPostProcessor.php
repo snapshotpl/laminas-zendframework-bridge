@@ -8,6 +8,9 @@
 
 namespace Laminas\ZendFrameworkBridge;
 
+use function array_flip;
+use function array_intersect_key;
+
 class ConfigPostProcessor
 {
     /** @var array String keys => string values */
@@ -62,15 +65,12 @@ class ConfigPostProcessor
                     : null;
             },
 
-            // Aliases and invokables
-            function ($value, array $keys) {
-                static $keysOfInterest;
+            // service- and pluginmanager handling
+            function ($value) {
+                $keysOfInterest = ['aliases', 'invokables', 'factories'];
 
-                $keysOfInterest = $keysOfInterest ?: ['aliases', 'invokables'];
-                $key            = array_pop($keys);
-
-                return in_array($key, $keysOfInterest, true) && is_array($value)
-                    ? [$this, 'replaceDependencyAliases']
+                return is_array($value) && array_intersect_key(array_flip($keysOfInterest), $value) !== []
+                    ? [$this, 'replaceDependencyConfiguration']
                     : null;
             },
 
@@ -182,7 +182,7 @@ class ConfigPostProcessor
                 $a[] = $value;
                 continue;
             }
-            
+
             if (is_array($value) && is_array($a[$key])) {
                 $a[$key] = static::merge($a[$key], $value);
                 continue;
@@ -234,6 +234,24 @@ class ConfigPostProcessor
         return $this->exactReplacements[$value];
     }
 
+    private function replaceDependencyConfiguration(array $config)
+    {
+        $aliases = isset($config['aliases']) ? $this->replaceDependencyAliases($config['aliases']) : [];
+        $invokables = isset($config['invokables']) ? $this->replaceDependencyAliases($config['invokables']) : [];
+
+        if ($aliases) {
+            $config['aliases'] = $aliases;
+        }
+
+        if ($invokables) {
+            $config['invokables'] = $invokables;
+        }
+
+        $config = $this->replaceDependencyFactories($config);
+
+        return $config;
+    }
+
     /**
      * Rewrite dependency aliases array
      *
@@ -259,5 +277,31 @@ class ConfigPostProcessor
     private function noopReplacement($value)
     {
         return $value;
+    }
+
+    private function replaceDependencyFactories(array $config)
+    {
+        if (empty($config['factories'])) {
+            return $config;
+        }
+
+        foreach ($config['factories'] as $service => $factory) {
+            $replacedService = $this->replacements->replace($service);
+            $factory         = is_string($factory) ? $this->replacements->replace($factory) : $factory;
+            $config['factories'][$replacedService] = $factory;
+
+            if ($replacedService === $service) {
+                continue;
+            }
+
+            unset($config['factories'][$service]);
+            if (isset($config['aliases'][$service])) {
+                continue;
+            }
+
+            $config['aliases'][$service] = $replacedService;
+        }
+
+        return $config;
     }
 }
