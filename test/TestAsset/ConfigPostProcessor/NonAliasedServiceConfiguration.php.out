@@ -9,7 +9,21 @@ return [
         'aliases' => [
             'foo' => 'Laminas\Form\Factory',
             'Zend\Cache\Storage\StorageInterface' => 'Laminas\Cache\Storage\StorageInterface',
+            'Zend\Expressive\Router\RouterInterface' => 'Mezzio\Router\RouterInterface',
+            'Zend\Expressive\OtherInterface' => 'OtherService',
+            'OtherService' => 'Mezzio\OtherInterface',
+            'MyAlias' => 'Mezzio\AliasChain',
+            'Mezzio\SessionInterface' => 'session',
+            'session' => 'Zend\Expressive\SessionInterface',
+            'Mezzio\Router\RouterInterface' => 'MyService',
+            'Zend\Expressive\AliasInterface' => 'Mezzio\AliasInterface',
+            'Zend\Expressive\AliasChain' => 'Mezzio\AliasChain',
             'Zend\Form\Factory' => 'Laminas\Form\Factory',
+        ],
+        'invokables' => [
+            'Zend\Expressive\SessionInterface' => 'MyNamespace\SessionInvokableClass',
+            'Mezzio\AliasInterface' => 'MyNamespace\InvokableClass',
+            'Mezzio\AliasChain' => 'MyNamespace\OtherInvokableClass',
         ],
     ],
 ];

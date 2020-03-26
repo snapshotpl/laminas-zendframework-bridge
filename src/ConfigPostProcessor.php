@@ -245,16 +245,11 @@ class ConfigPostProcessor
     private function replaceDependencyConfiguration(array $config)
     {
         $aliases = isset($config['aliases']) ? $this->replaceDependencyAliases($config['aliases']) : [];
-        $invokables = isset($config['invokables']) ? $this->replaceDependencyAliases($config['invokables']) : [];
-
         if ($aliases) {
             $config['aliases'] = $aliases;
         }
 
-        if ($invokables) {
-            $config['invokables'] = $invokables;
-        }
-
+        $config = $this->replaceDependencyInvokables($config);
         $config = $this->replaceDependencyFactories($config);
 
         return $config;
@@ -265,17 +260,78 @@ class ConfigPostProcessor
      *
      * In this case, we want to keep the alias as-is, but rewrite the target.
      *
-     * This same logic can be used for invokables, which are essentially just
-     * an alias map.
+     * We need also provide an additional alias if the alias key is a legacy class.
      *
      * @return array
      */
     private function replaceDependencyAliases(array $aliases)
     {
         foreach ($aliases as $alias => $target) {
-            $aliases[$alias] = $this->replacements->replace($target);
+            $newTarget = $this->replacements->replace($target);
+            $newAlias  = $this->replacements->replace($alias);
+
+            $notIn = [$newTarget];
+            $name  = $newTarget;
+            while (isset($aliases[$name])) {
+                $notIn[] = $aliases[$name];
+                $name    = $aliases[$name];
+            }
+
+            if ($newAlias === $alias && ! in_array($alias, $notIn, true)) {
+                $aliases[$alias] = $newTarget;
+                continue;
+            }
+
+            if (isset($aliases[$newAlias])) {
+                continue;
+            }
+
+            if (! in_array($newAlias, $notIn, true)) {
+                $aliases[$alias]    = $newAlias;
+                $aliases[$newAlias] = $newTarget;
+            }
         }
+
         return $aliases;
+    }
+
+    /**
+     * Rewrite dependency invokables array
+     *
+     * In this case, we want to keep the alias as-is, but rewrite the target.
+     *
+     * We need also provide an additional alias if invokable is defined with
+     * an alias which is a legacy class.
+     *
+     * @return array
+     */
+    private function replaceDependencyInvokables(array $config)
+    {
+        if (empty($config['invokables'])) {
+            return $config;
+        }
+
+        foreach ($config['invokables'] as $alias => $target) {
+            $newTarget = $this->replacements->replace($target);
+            $newAlias  = $this->replacements->replace($alias);
+
+            if ($alias === $target || isset($config['aliases'][$newAlias])) {
+                $config['invokables'][$alias] = $newTarget;
+                continue;
+            }
+
+            $config['invokables'][$newAlias] = $newTarget;
+
+            if ($newAlias === $alias) {
+                continue;
+            }
+
+            $config['aliases'][$alias] = $newAlias;
+
+            unset($config['invokables'][$alias]);
+        }
+
+        return $config;
     }
 
     /**
