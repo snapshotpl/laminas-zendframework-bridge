@@ -251,6 +251,10 @@ class ConfigPostProcessor
 
         $config = $this->replaceDependencyInvokables($config);
         $config = $this->replaceDependencyFactories($config);
+        $delegators = isset($config['delegators']) ? $this->replaceDependencyDelegators($config['delegators']) : [];
+        if ($delegators) {
+            $config['delegators'] = $delegators;
+        }
 
         return $config;
     }
@@ -367,5 +371,29 @@ class ConfigPostProcessor
         }
 
         return $config;
+    }
+
+    private function replaceDependencyDelegators(array $delegators)
+    {
+        if (empty($delegators)) {
+            return $delegators;
+        }
+
+        $replacedDelegators = [];
+        foreach ($delegators as $service => $factories) {
+            $service = $this->replacements->replace($service);
+            if (!is_array($factories)) {
+                $replacedDelegators[$service] = $factories;
+                // Invalid configuration aint replaced.
+                continue;
+            }
+
+            foreach ($factories as $index => $factory) {
+                $factory = is_string($factory) ? $this->replacements->replace($factory) : $factory;
+                $replacedDelegators[$service][$index] = $factory;
+            }
+        }
+
+        return $replacedDelegators;
     }
 }
